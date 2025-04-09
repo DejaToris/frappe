@@ -4,13 +4,13 @@ import subprocess
 import argparse
 import re
 
-WORKING_DIR = "/tmp/"
+WORKING_DIR = "/tmp/" #TODO convert to global path and generated dirname
 FFUF_KEYWORD = "FUZZ"
-FFUF_PATH = "ffuf"
+FFUF_PATH = "ffuf" #TODO make this a command line argument or move to a config file
+ANSI_ESCAPES_RE = re.compile(r"\x1b\[[0-9;]*[a-zA-Z]|\r")
 
 def main():
     parser = argparse.ArgumentParser(description="Pass arguments just like ffuf")
-    # Define arguments
     parser.add_argument("-H", action="append", help="HTTP headers (can be repeated)")
     parser.add_argument("-D", help="Character dictionary in string form")
     parser.add_argument("-u", help="Target URL")
@@ -25,24 +25,23 @@ def main():
         print(f"Unknown arguments: {unknown}")
         exit(1)
 
-    # Access repeated arguments
+    # Access repeated header arguments
     if args.H:
         print("Headers provided:")
         for header in args.H:
             print(header)
 
     # load dictionary to both a list and a file. the file will be passed to ffuf
+    
+    #TODO add a dictionary generation functionality
 
     if args.D:
-        dict = list(args.D)
-        dict_path = WORKING_DIR + "dict.txt"
+        dict_path = WORKING_DIR + "dict.txt" #TODO generate filename to avoid overrides, possibly use a hash of the dictionary
         with open(dict_path, "w") as dict_file:
             for char in args.D:
                 dict_file.write(char + "\n")
     elif args.w:
         dict_path = args.w
-        with open(dict_path, "r") as dict_file:
-            lines = [line.strip() for line in dict_file]
     else:
         raise Exception("Please pass a dictionary in string or file path form!")
 
@@ -51,14 +50,14 @@ def main():
     next_char = get_next_char_from_ffuf(args, dict_path, secret)
     while next_char :
         secret += next_char
-        print(secret)
+        print(secret) #TODO find a way to print the growing secret in a single line
         next_char = get_next_char_from_ffuf(args, dict_path, secret)
-
 
 def get_next_char_from_ffuf(args, dict_path, secret):
     new_args = generate_ffuf_args(args, dict_path, secret)
     ffuf_command = [FFUF_PATH] + new_args
     result = subprocess.run(ffuf_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    #TODO implement error handling for ffuf errors
 
     return parse_ffuf_result(result)
 
@@ -86,7 +85,7 @@ def generate_ffuf_args(args, dict_path, secret):
 def parse_ffuf_result(result):
     clean_result = result.stdout.decode('utf-8')
     if len(clean_result) > 0:
-        return re.sub(r'\x1b\[[0-9;]*[a-zA-Z]|\r', '', clean_result)[0]
+        return ANSI_ESCAPES_RE.sub('', clean_result)[0]
     return None
 
 if __name__ == '__main__':
