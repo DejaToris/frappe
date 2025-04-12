@@ -8,6 +8,7 @@ WORKING_DIR = "/tmp/" #TODO convert to global path and generated dirname
 FFUF_KEYWORD = "FUZZ"
 FFUF_PATH = "ffuf" #TODO make this a command line argument or move to a config file
 ANSI_ESCAPES_RE = re.compile(r"\x1b\[[0-9;]*[a-zA-Z]|\r")
+FRAPPE_ARGS = ["D"]
 
 def main():
     parser = argparse.ArgumentParser(description="Pass arguments just like ffuf")
@@ -44,6 +45,8 @@ def main():
         dict_path = args.w
     else:
         raise Exception("Please pass a dictionary in string or file path form!")
+    
+    ffuf_args, ffuf_keyword_arg = process_args(args, dict_path)
 
     secret = ""
 
@@ -51,6 +54,8 @@ def main():
     while next_char :
         secret += next_char
         print(secret) #TODO find a way to print the growing secret in a single line
+        updated_arg = inject_new_secret(ffuf_keyword_arg, secret)
+        
         next_char = get_next_char_from_ffuf(args, dict_path, secret)
 
 def get_next_char_from_ffuf(args, dict_path, secret):
@@ -60,6 +65,27 @@ def get_next_char_from_ffuf(args, dict_path, secret):
     #TODO implement error handling for ffuf errors
 
     return parse_ffuf_result(result)
+
+def inject_new_secret(arg_value, secret):
+    return str(arg_value).replace(FFUF_KEYWORD, f"{secret}{FFUF_KEYWORD}")
+
+def process_args(args, dict_path):
+    new_args = []
+    ffuf_keyword_arg = None
+    for arg_name, arg_value in vars(args).items():
+        if arg_name in FRAPPE_ARGS:
+            continue
+        elif arg_name == "w":
+            new_args.append(f'-{arg_name}')
+            new_args.append(dict_path)
+        else:
+            new_args.append(f'-{arg_name}')
+            new_args.append(arg_value)
+            if FFUF_KEYWORD in str(arg_value):
+                ffuf_keyword_arg = arg_name
+    if ffuf_keyword_arg is None:
+        raise Exception("No FFUF keyword argument found!")
+    return new_args, ffuf_keyword_arg
 
 def generate_ffuf_args(args, dict_path, secret):
     new_args = []
